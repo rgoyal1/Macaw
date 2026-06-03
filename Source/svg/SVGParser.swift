@@ -896,11 +896,16 @@ open class SVGParser {
         return 0
     }
 
-    fileprivate func getTag(_ element: XMLHash.XMLElement) -> [String] {
-        let id = element.allAttributes["id"]?.text
-        return id.map { [$0] } ?? []
-    }
+//    fileprivate func getTag(_ element: XMLHash.XMLElement) -> [String] {
+//        let id = element.allAttributes["id"]?.text
+//        return id.map { [$0] } ?? []
+//    }
 
+    fileprivate func getTag(_ element: SWXMLHash.XMLElement) -> [String] {
+        return ["id","data-inventory-class","data-seat-properties"]
+            .compactMap { element.allAttributes[$0]?.text }
+    }
+    
     fileprivate func getOpacity(_ styleParts: [String: String]) -> Double {
         if let opacityAttr = styleParts["opacity"] {
             return getOpacity(opacityAttr)
@@ -2268,4 +2273,40 @@ fileprivate extension CharacterSet {
     static let unitCharacters = CharacterSet.latinAlphabet
 
     static let transformationAttributeCharacters = CharacterSet.latinAlphabet
+}
+
+extension SVGParser {
+
+    public struct CoachNode {
+        public let node: Group
+        public let defs: [String: Image]
+    }
+
+    public class func parse(coachSVG: String) -> CoachNode? {
+        let parser = SVGParser(coachSVG)
+
+        guard let node = try? parser.parse() else {
+            return nil
+        }
+
+        let defs = parser.defNodes
+            .filter { $0.key.hasPrefix("sfseat") || $0.key.hasPrefix("sbseat") }
+            .compactMap { try? parser.parseNode($0.value) }
+            .filter { !$0.tag.isEmpty }
+            .reduce(into: [String: Image]()) {
+
+                guard let tag = $1.tag.first,
+                      let group = $1 as? Group,
+                      let image = group.contents.first as? Image else {
+                    return
+                }
+
+                $0[tag] = image
+            }
+
+        return CoachNode(
+            node: node,
+            defs: defs
+        )
+    }
 }
